@@ -1,0 +1,204 @@
+---
+title: "ProteinReport"
+author: "Bowen Zhang"
+date: "02/12/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+options(max.print=25000)
+library(faraway)
+data = read.csv("protein-train.csv")
+orgFull = lm(accuracy~.,data = data)
+orgFull = lm(accuracy ~ .-scArgN_bbO_short-scArgN_bbC_medshort,data = data)
+```
+
+```{r}
+vifs = vif(orgFull)
+allNames= names(vifs)
+while(any(vifs >= 10)){
+  toBeRemoved <- names(which(vifs == max(vifs)))  # get the var with max vif
+  allNames <- allNames[!(allNames) %in% toBeRemoved]  # remove
+  myForm <- as.formula(paste("accuracy ~ ", paste (allNames, collapse=" + "), sep=""))  # new formula
+  selectedMod <- lm(myForm, data=data)  # re-build model with new formula
+  vifs <- vif(selectedMod)
+}
+```
+
+
+```{r}
+###Set Up Data Splitting
+library(MASS)
+N <- nrow(data)
+set.seed(20755580)
+trainInd <- sample(1:N, round(N*0.8), replace=F)
+trainSet <- data[trainInd,]
+validSet <- data[-trainInd,]
+fullModel = lm(as.formula(paste("accuracy ~ ", paste (allNames, collapse=" + "), sep="")),data = trainSet)
+emptyModel = lm(accuracy~1,data = trainSet)
+```
+
+```{r,eval=FALSE}
+### Fitting BIC Forward
+#stepAIC(object = emptyModel, scope = list(upper = fullModel, lower = emptyModel), direction = "forward", k = log(nrow(trainSet)))
+
+```
+
+```{r}
+AICModel = lm(formula = accuracy ~ aliph1HC_aliph2HC_long + scLysN_bbC_vlong + 
+    aliph2HC_bbN_medshort + aliph1HC_aromaticC_medshort + aromaticC_hydroxylO_medlong + 
+    aromaticC_scAGN_short + aliph1HC_aromaticC_vlong + aliph1HC_bbO_long + 
+    carboxylC_scLysN_vlong + bbC_bbO_short + aliph1HC_aliph1HC_vlong + 
+    scAGN_bbN_long + bbN_bbCA_medlong + aromaticC_hydroxylO_long + 
+    aliph1HC_aromaticC_long + carboxylO_bbC_vlong + sulfur_bbC_medlong + 
+    aliph2HC_aromaticC_vlong + aliph1HC_aromaticC_medlong + aromaticC_aromaticC_vlong + 
+    sulfur_bbC_vlong + carboxylC_aromaticC_long + aliph1HC_bbO_medlong + 
+    aliph3HC_bbN_short + aliph3HC_aliph3HC_short + carboxylO_bbCA_long + 
+    scLysN_carboxylO_long + aliph1HC_bbC_medshort + bbO_bbO_short + 
+    aliph1HC_sulfur_short + aromaticC_sulfur_long + aliph2HC_scArgN_vlong + 
+    scArgN_bbO_medlong + aliph2HC_hydroxylO_long + carboxylC_bbN_long + 
+    scAGN_bbN_medlong + carbonylC_bbProN_medlong + aliph2HC_aliph2HC_short + 
+    aliph2HC_aliph3HC_vlong + bbN_bbC_vlong + aliph2HC_bbC_vlong + 
+    scLysN_bbN_vlong + carbonylC_bbProN_long + aromaticC_bbO_vlong + 
+    scAGN_hydroxylO_long + carbonylC_hydroxylO_long + aliph1HC_hydroxylO_vlong + 
+    aliph1HC_hydroxylO_long + hydroxylO_sulfur_vlong + carbonylC_bbC_medlong + 
+    bbN_bbN_medshort + aliph2HC_bbN_medlong + aliph2HC_bbO_short + 
+    aliph2HC_scLysN_vlong + carboxylC_carboxylC_vlong + aliph1HC_bbN_medshort + 
+    aliph3HC_bbN_medlong + carboxylO_carboxylO_medlong + carbonylC_bbProN_vlong + 
+    carbonylC_carbonylO_vlong + hydroxylO_sulfur_long + carboxylO_sulfur_medshort + 
+    aliph1HC_aliph3HC_long + bbCA_bbCA_vlong + aliph1HC_carbonylO_medshort + 
+    sulfur_sulfur_vlong + sulfur_bbCA_short + aliph2HC_aromaticC_long + 
+    aliph3HC_aromaticC_medlong + aliph3HC_aromaticC_long + aliph3HC_bbN_long + 
+    aliph3HC_hydroxylO_short + scLysN_bbN_medlong + bbCA_bbO_vshort + 
+    aliph2HC_bbN_vlong + aliph1HC_bbN_medlong + aliph1HC_scArgN_long + 
+    aliph1HC_bbCA_medshort + bbCA_bbO_medshort + aliph1HC_aliph1HC_medlong + 
+    carboxylO_bbO_vlong + sulfur_bbN_medlong + aliph2HC_aromaticC_medshort + 
+    carboxylO_bbN_vshort + aliph1HC_hydroxylO_medlong + aliph1HC_hydroxylO_medshort + 
+    aliph3HC_hydroxylO_medshort + aliph3HC_bbO_short + scArgN_carboxylO_long + 
+    aromaticC_bbN_medlong + aliph2HC_bbC_medshort, data = trainSet)
+pred1 <- predict(AICModel, newdata = validSet)
+sqrt(mean((validSet$accuracy - pred1)^2)) # RMSE on validation
+sqrt(mean(AICModel$residuals^2)) # RMSE on train
+```
+
+```{r}
+### Increase the penalty for BIC
+# Try stepwise again, with a larger L0 penalty (e.g., twice the usual BIC penalty)
+#stepAIC(object = emptyModel, scope = list(upper = fullModel, lower = emptyModel), direction = "forward", k = 2*log(nrow(trainSet)))
+```
+
+```{r}
+AICLargerPenaltyModel = lm(formula = accuracy ~ aliph1HC_aliph2HC_long + scLysN_bbC_vlong + 
+    aliph2HC_bbN_medshort + aliph1HC_aromaticC_medshort + aromaticC_hydroxylO_medlong + 
+    aromaticC_scAGN_short + aliph1HC_aromaticC_vlong + aliph1HC_bbO_long + 
+    carboxylC_scLysN_vlong + bbC_bbO_short + aliph1HC_aliph1HC_vlong + 
+    scAGN_bbN_long + bbN_bbCA_medlong + aromaticC_hydroxylO_long + 
+    aliph1HC_aromaticC_long + carboxylO_bbC_vlong + sulfur_bbC_medlong + 
+    aliph2HC_aromaticC_vlong + aliph1HC_aromaticC_medlong + aromaticC_aromaticC_vlong + 
+    sulfur_bbC_vlong + carboxylC_aromaticC_long + aliph1HC_bbO_medlong + 
+    aliph3HC_bbN_short + aliph3HC_aliph3HC_short + carboxylO_bbCA_long + 
+    scLysN_carboxylO_long + aliph1HC_bbC_medshort + bbO_bbO_short + 
+    aliph1HC_sulfur_short + aromaticC_sulfur_long + aliph2HC_scArgN_vlong + 
+    scArgN_bbO_medlong + aliph2HC_hydroxylO_long + carboxylC_bbN_long + 
+    scAGN_bbN_medlong + carbonylC_bbProN_medlong + aliph2HC_aliph2HC_short + 
+    aliph2HC_aliph3HC_vlong + bbN_bbC_vlong + aliph2HC_bbC_vlong + 
+    scLysN_bbN_vlong + carbonylC_bbProN_long + aromaticC_bbO_vlong, 
+    data = trainSet)
+AIC(AICLargerPenaltyModel, k = 2*log(nrow(trainSet)))
+# calculate the value of criterion based on this larger L0 penalty
+pred2 <- predict(AICLargerPenaltyModel, newdata = validSet)
+sqrt(mean((validSet$accuracy - pred2)^2)) # RMSE on validation
+sqrt(mean(AICLargerPenaltyModel$residuals^2)) # RMSE on train
+```
+
+```{r,eval=FALSE}
+# Try ICM to search for a model with a potentially better BIC
+# than the one found with stepwise
+pen <- log(nrow(trainSet)) # 
+varlist = c()
+varnames = names(trainSet)
+n = nrow(trainSet)
+varorder <- sample(1:ncol(trainSet)) # random order of variables
+minCrit = Inf
+noChange = F
+while (!noChange) {
+  noChange = T
+  for (i in varorder) { 
+    if (i == 1)
+      next
+    
+    if (i %in% varlist & length(varlist) > 1) {
+      index = c(1, varlist[varlist != i]) 
+      trainVars = trainSet[, index]
+      
+      fit = lm(accuracy ~ ., data = trainVars)
+      
+      if (AIC(fit, k = pen) < minCrit) {
+        minCrit = AIC(fit, k = pen)
+        varlist = varlist[varlist != i]
+        #print(paste0("Criterion: ", round(minCrit, 1), ", variables: ", paste0(varnames[varlist], collapse = " ")))
+        best.model = fit
+        noChange = F
+      }
+      
+    } else if (!i %in% varlist) {
+      index = c(1, varlist, i) 
+      trainVars = trainSet[, index]
+      
+      fit = lm(accuracy ~ ., data = trainVars)
+      
+      if (AIC(fit, k = pen) < minCrit) {
+        minCrit = AIC(fit, k = pen)
+        varlist = c(varlist, i)
+        #print(paste0("Criterion: ", round(minCrit, 1), ", variables: ", paste0(varnames[varlist], collapse = " ")))
+        best.model = fit
+        noChange = F
+      }      
+    }
+  }
+}
+```
+
+```{r}
+s=summary(best.model)
+predICM <- predict(best.model, newdata = validSet)
+sqrt(mean((validSet$accuracy - predICM)^2)) # RMSE on validation
+sqrt(mean(best.model$residuals^2)) # RMSE on train
+```
+
+```{r}
+K <- 5
+validSetSplits <- sample((1:N)%%K + 1)
+RMSE1 <- c()
+RMSE2 <- c()
+for (k in 1:K) {
+  validSet <- data[validSetSplits==k,]
+  trainSet <- data[validSetSplits!=k,]  
+  
+  m1 <- stepAIC(object = fullModel, scope = list(upper = fullModel, lower = emptyModel),
+                direction = "forward", k = log(nrow(trainSet)))
+  pred1 <- predict(m1, newdata = validSet)
+  RMSE1[k] <- sqrt(mean((validSet$accuracy - pred1)^2))  
+  
+  m2 <- stepAIC(object = emptyModel, scope = list(upper = fullModel, lower = emptyModel),
+                direction = "forward", k = 2 * log(nrow(trainSet)))
+  pred2 <- predict(m2, newdata = validSet)
+  RMSE2[k] <- sqrt(mean((validSet$accuracy- pred2)^2))  
+
+}
+RMSE1
+RMSE2
+mean(RMSE1)
+mean(RMSE2)
+```
+
+
+
+
+
